@@ -68,28 +68,24 @@ def parse_activities(text: str) -> tuple[list[Activity], list[str]]:
     Возвращает (занятия, ошибки по строкам)."""
     activities: list[Activity] = []
     errors: list[str] = []
+    pattern = re.compile(
+        r"^(?P<name>.+?)[\s—–:-]+(?P<hours>\d+(?:\.\d+)?)\s*(?:ч|час[а-яё]*)?\.?$",
+        re.IGNORECASE,
+    )
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
             continue
-        tokens = re.split(r"[\s—–:,-]+(?=[\d\s])|\s+", line)
-        tokens = [t for t in tokens if t]
-        hours = None
-        idx = None
-        for i in range(len(tokens) - 1, -1, -1):
-            t = tokens[i].replace(",", ".").rstrip("чЧ.")
-            try:
-                hours = float(t)
-                idx = i
-                break
-            except ValueError:
-                continue
-        name = " ".join(tokens[:idx]).strip(" -—–:") if idx else ""
-        if hours is None or not name:
-            errors.append(line)
+        # десятичная запятая -> точка, чтобы «3,5» не распалось на два числа
+        line = re.sub(r"(\d),(\d)", r"\1.\2", line)
+        m = pattern.match(line)
+        if not m:
+            errors.append(raw.strip())
             continue
-        if not (0 < hours <= 100):
-            errors.append(f"{line} (часы должны быть от 0.5 до 100)")
+        name = m.group("name").strip(" -—–:")
+        hours = float(m.group("hours"))
+        if not name or not (0 < hours <= 100):
+            errors.append(f"{raw.strip()} (часы должны быть от 0.5 до 100)")
             continue
         activities.append(Activity(name=name, hours=hours))
     return activities, errors
@@ -126,14 +122,16 @@ def build_schedule(
     }
     required = sum(remaining.values())
     capacity = sum(end - start for _, start, end in days)
+    # часть окна съедают перерывы между блоками — учитываем это заранее
+    effective = capacity * s.max_block // (s.max_block + s.break_min)
 
-    if required > capacity:
-        factor = capacity / required
+    if required > effective:
+        factor = effective / required
         for k in remaining:
             remaining[k] = max(SLOT, int(remaining[k] * factor) // SLOT * SLOT)
         warnings.append(
-            f"Запрошено {fmt_hours(required)}, а свободно всего {fmt_hours(capacity)} — "
-            f"часы урезаны пропорционально."
+            f"Запрошено {fmt_hours(required)}, а свободно с учётом перерывов "
+            f"около {fmt_hours(effective)} — часы урезаны пропорционально."
         )
 
     # цель на каждый день — пропорционально его вместимости (метод наибольших остатков)

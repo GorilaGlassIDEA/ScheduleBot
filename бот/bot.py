@@ -197,13 +197,26 @@ async def handle_rebuild(cb: CallbackQuery) -> None:
     await cb.answer()
 
 
-async def main() -> None:
+def read_token() -> str:
+    """Токен берётся из docker-секрета (BOT_TOKEN_FILE) или из .env (BOT_TOKEN)."""
     load_dotenv()
+    token_file = os.getenv("BOT_TOKEN_FILE")
+    if token_file and os.path.exists(token_file):
+        with open(token_file, encoding="utf-8") as f:
+            token = f.read().strip()
+        if token:
+            return token
     token = os.getenv("BOT_TOKEN")
-    if not token:
-        raise SystemExit(
-            "Не найден BOT_TOKEN. Создай файл .env со строкой BOT_TOKEN=<токен от @BotFather>"
-        )
+    if token:
+        return token
+    raise SystemExit(
+        "Токен не найден. Либо запусти ./set-token.sh (для docker compose), "
+        "либо создай .env со строкой BOT_TOKEN=<токен от @BotFather>"
+    )
+
+
+async def main() -> None:
+    token = read_token()
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     await dp.start_polling(bot)
 
