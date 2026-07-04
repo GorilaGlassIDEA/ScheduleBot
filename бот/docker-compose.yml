@@ -11,8 +11,13 @@ services:
     secrets:
       - bot_token
     volumes:
-      - ./data:/app/data
+      # именованный том, а не ./data: у bind-mount владелец root,
+      # и непривилегированный appuser не может в него писать
+      - botdata:/app/data
 
 secrets:
   bot_token:
     file: ./secrets/bot_token
+
+volumes:
+  botdata:

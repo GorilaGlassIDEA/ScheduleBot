@@ -12,8 +12,11 @@ if [[ -z "$token" ]]; then
     exit 1
 fi
 
+# доступ ограничивает папка (700); сам файл 644, чтобы его мог
+# прочитать непривилегированный пользователь внутри контейнера
 mkdir -p secrets
-umask 177
+chmod 700 secrets
 printf '%s' "$token" > secrets/bot_token
-echo "Токен сохранён в secrets/bot_token (права 600)."
+chmod 644 secrets/bot_token
+echo "Токен сохранён в secrets/bot_token."
 echo "Теперь запускай: docker compose up -d --build"
